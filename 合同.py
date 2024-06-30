@@ -344,7 +344,7 @@ with tab1:
                     #print("-----------------")
                     #print(review_point)
                     #print(len(review_points_list))
-                    result = fake_api_call(review_point, pdf_text, test_mode=False, model=model)
+                    result = fake_api_call(review_point, contract_text, test_mode=False, model=model)
                     st.session_state.review_results.append(result)
                     st.success(f"{review_point[0]} 审查完成")
             st.session_state.current_tab = "审查结果"
