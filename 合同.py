@@ -68,11 +68,17 @@ st.markdown(
         font-size: 2em;
     }
     .expander-pass {
-        background-color: #E8F5E9;
+        background-color: white;
+        color: black;
+    }
+    .expander-pass strong {
         color: #1E8E3E;
     }
     .expander-fail {
-        background-color: #FFEBEE;
+        background-color: white;
+        color: black;
+    }
+    .expander-fail strong {
         color: #D32F2F;
     }
     .stTabs [role="tab"] {
@@ -215,9 +221,10 @@ def generate_prompt(review_point, contract_content):
    - 请确保您的回答符合中国最新的法律法规和商业惯例。
    - 如果合同中存在任何潜在的法律风险或不明确之处，请特别指出并提供相应的改进建议。
    - 在提供修改建议时，请考虑平衡双方利益，特别是要保护披露方的权益。
-   - 如果在"条款修改建议"中，没有"原文": "原始条款内容" 或者 "修改建议": "建议修改后的条款内容"，请输出暂无。
+   - 如果在"条款修改建议"中，没有原文或者"修改建议，请输出暂无。
    -  <important>你的输出请严格遵循我提供给你的格式，不要输出任何多余其他文字或符号。输出在【】中。</important>
    - 你的判定不能过于严格，也不能过于宽松，你应该尽可能让输出结果的F1 分数更高。
+   - 输出的内容中尽量不要含有【】符号，避免干扰正则表达式。
 
 <contract>
 以下是合同：
@@ -284,25 +291,38 @@ def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=
         content = response_content
 
     # Parse the content
-    sections = re.split(r'##\s+', content)
+    sections = re.split(r'(?<!#)##(?!#)\s+', content)
+    subsections = re.split(r'###\s+', content)
+    
+    # Combine sections and subsections
+    combined_sections = []
+    for section in sections:
+        if '###' in section:
+            combined_sections.extend(re.split(r'###\s+', section))
+        else:
+            combined_sections.append(section)
     result = {}
     for section in sections:
         if section.strip():
             lines = section.strip().split('\n')
             key = lines[0].strip()
             value = '\n'.join(lines[1:]).strip()
-            if key == "条款修改建议":
+            print('what is key')
+            print(key)
+            print(value)
+            if "条款修改建议" in key:
                 sub_sections = re.split(r'###\s+', value)
                 result[key] = {
                     "原文": sub_sections[1].strip() if len(sub_sections) > 1 else "",
                     "修改建议": sub_sections[2].strip() if len(sub_sections) > 2 else ""
                 }
+                print(result[key])
             else:
                 result[key] = value
 
     # Extract the required fields, using default values if not present
     final_result = {
-        "审查要点": result.get("审查要点", review_point[0]),
+        "审查要点": review_point[0],
         "具体理由": result.get("具体理由", "无具体理由"),
         "专业意见": result.get("专业意见", "无专业意见"),
         "条款修改建议": {
@@ -342,7 +362,7 @@ with tab1:
                 with st.spinner(f"正在审查 {review_point[0]}..."):
                     #print(review_points_list)
                     #print("-----------------")
-                    #print(review_point)
+                    print(review_point)
                     #print(len(review_points_list))
                     result = fake_api_call(review_point, contract_text, test_mode=False, model=model)
                     st.session_state.review_results.append(result)
