@@ -22,13 +22,6 @@ st.set_page_config(
     }
 )
 
-#os.environ['OPENROUTER_API_KEY'] = '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'
-# Initialize OpenAI client with OpenRouter API
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=getenv("OPENROUTER_API_KEY"),
-)
-
 # Custom CSS to improve the visual aspect and change fonts
 st.markdown(
     """
@@ -133,16 +126,30 @@ st.markdown("""
         }
     </style>
     """, unsafe_allow_html=True)
-
 # API Key 输入
 st.session_state.api_key = st.text_input("请输入 API Key", value=st.session_state.api_key, type="password")
+
+# 验证 API Key
+if st.session_state.api_key:
+    # 设置环境变量
+    os.environ['OPENROUTER_API_KEY'] = st.session_state.api_key
+    
+    # Initialize OpenAI client with OpenRouter API
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+    )
+    
+else:
+    st.warning("请输入有效的 API Key")
 
 # 模型选择
 model_options = {
     "Claude 3 Haiku": "anthropic/claude-3-haiku:beta",
-    "Claude 3.5 Sonnet": "anthropic/claude-3.5-sonnet:beta",
+    "Claude 3.5 Sonnet": "anthropic/claude-3.5-sonnet",
     "GPT-4": "openai/gpt-4",
     "GPT-4 Turbo": "openai/gpt-4-turbo",
+    "Qwen2-72b-instruct": "qwen/qwen-2-72b-instruct",
 
 }
 selected_model = st.selectbox("选择模型", list(model_options.keys()))
@@ -250,6 +257,8 @@ def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=
             },
         ],
     )
+    print(completion)
+    print(completion.choices[0].message.content)
     response_content = completion.choices[0].message.content
 
     print(response_content)
