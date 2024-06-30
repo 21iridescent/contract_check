@@ -158,7 +158,7 @@ selected_model = st.selectbox("选择模型", list(model_options.keys()))
 model = model_options[selected_model]
 
 # 文件上传
-uploaded_file = st.file_uploader("请选择一个PDF或DOCX文件上传", type=["pdf", "docx"])
+uploaded_file = st.file_uploader("请选择一个PDF文件上传", type="pdf")
 
 def extract_text_from_pdf(file):
     pdf_document = fitz.open(stream=file.read(), filetype="pdf")
@@ -168,28 +168,10 @@ def extract_text_from_pdf(file):
         text += page.get_text()
     return text
 
-from docx import Document
-def extract_text_from_docx(file):
-    doc = Document(file)
-    text = ""
-    for paragraph in doc.paragraphs:
-        text += paragraph.text + "\n"
-    return text
-
 if uploaded_file is not None:
     st.write(f"已上传文件: {uploaded_file.name}")
-    file_extension = uploaded_file.name.split(".")[-1].lower()
-    
-    if file_extension == "pdf":
-        contract_text = extract_text_from_pdf(uploaded_file)
-    elif file_extension == "docx":
-        contract_text = extract_text_from_docx(uploaded_file)
-    else:
-        st.error("不支持的文件格式。请上传PDF或DOCX文件。")
-        contract_text = ""
-    
-    if contract_text:
-        st.success("文件已成功上传并解析，准备审查。")
+    #st.write("文件已成功上传，准备审查。")
+    pdf_text = extract_text_from_pdf(uploaded_file)
 
 # 创建标签页
 tabs = st.tabs(["审查要点", "审查结果"])
@@ -216,37 +198,26 @@ def generate_prompt(review_point, contract_content):
    - 如果合同中存在任何潜在的法律风险或不明确之处，请特别指出并提供相应的改进建议。
    - 在提供修改建议时，请考虑平衡双方利益，特别是要保护披露方的权益。
    - 如果在"条款修改建议"中，没有"原文": "原始条款内容" 或者 "修改建议": "建议修改后的条款内容"，请输出暂无。
-   -  <important>你的输出请严格遵循我提供给你的格式，不要输出任何多余其他文字或符号。输出在【】中。</important>
+   -  <important>你的输出请严格遵循标准的 JSON 格式，不要输出任何其他文字或符号。</important>
    - 你的判定不能过于严格，也不能过于宽松，你应该尽可能让输出结果的F1 分数更高。
+   - 请严格遵循格式，在内容中不要输出会破坏 JSON 格式的符号，比如双引号、换行符等。
+
+3. 最终输出格式：
+   {{
+     "审查要点": "要点名称",
+     "具体理由": "简要说明理由",
+     "专业意见": "提供改进建议或专业观点",
+     "条款修改建议": {{
+       "原文:...建议修改后的条款内容:..."
+     }},
+     "审查结果": "通过/未通过"
+   }}
+</instructions>
 
 <contract>
 以下是合同：
 {contract_content}
 </contract>
-
-<constraints>
-请确保你的输出格式如下：
-【## 审查要点
-...
-
-## 具体理由
-...
-
-## 专业意见
-...
-
-## 条款修改建议
-### 原文
-...
-
-### 建议修改后的条款内容
-...
-
-## 审查结果
-通过/不通过】
-</constraints>
-</instructions>
-
     """
     return xml_template
 def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=st.session_state.api_key):
@@ -276,45 +247,32 @@ def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=
     response_content = completion.choices[0].message.content
     print(response_content)
 
-    # Extract content between 【】
-    content_match = re.search(r'【([\s\S]*?)】', response_content)
-    if content_match:
-        content = content_match.group(1)
-    else:
-        content = response_content
-
-    # Parse the content
-    sections = re.split(r'##\s+', content)
-    result = {}
-    for section in sections:
-        if section.strip():
-            lines = section.strip().split('\n')
-            key = lines[0].strip()
-            value = '\n'.join(lines[1:]).strip()
-            if key == "条款修改建议":
-                sub_sections = re.split(r'###\s+', value)
-                result[key] = {
-                    "原文": sub_sections[1].strip() if len(sub_sections) > 1 else "",
-                    "修改建议": sub_sections[2].strip() if len(sub_sections) > 2 else ""
-                }
-            else:
-                result[key] = value
+    try:
+        # Try to parse the entire response as JSON
+        response_json = json.loads(response_content)
+    except json.JSONDecodeError:
+        # If that fails, try to extract JSON from the response
+        json_match = re.search(r'\{[\s\S]*\}', response_content)
+        if json_match:
+            try:
+                # Use a custom JSON decoder to handle nested quotes
+                response_json = json.loads(json_match.group(), strict=False)
+            except json.JSONDecodeError:
+                # If all else fails, return an empty dict
+                response_json = {}
+        else:
+            response_json = {}
 
     # Extract the required fields, using default values if not present
-    final_result = {
-        "审查要点": result.get("审查要点", review_point[0]),
-        "具体理由": result.get("具体理由", "无具体理由"),
-        "专业意见": result.get("专业意见", "无专业意见"),
-        "条款修改建议": {
-            "原文": result.get("条款修改建议", {}).get("原文", "无原文"),
-            "修改建议": result.get("条款修改建议", {}).get("修改建议", "无修改建议")
-        },
-        "审查结果": result.get("审查结果", "暂无")
+    result = {
+        "审查要点": response_json.get("审查要点", review_point[0]),
+        "具体理由": response_json.get("具体理由", "无具体理由"),
+        "专业意见": response_json.get("专业意见", "无专业意见"),
+        "条款修改建议": response_json.get("条款修改建议", "无修改建议"),
+        "审查结果": response_json.get("审查结果", "暂无")
     }
 
-    print(final_result)
-
-    return final_result
+    return result
 
 with tab1:
     edited_df = st.data_editor(
@@ -356,16 +314,13 @@ with tab2:
     if st.session_state.review_results:
         for result in st.session_state.review_results:
             status_class = "expander-pass" if result['审查结果'] == "通过" else "expander-fail"
-            #with st.expander(f"{result['审查要点']} - {result['审查结果']}", expanded=True):
-            with st.expander(f"{result['审查要点']}", expanded=True):
+            with st.expander(f"{result['审查要点']} - {result['审查结果']}", expanded=True):
                 st.markdown(f"""
                 <div class='{status_class}'>
                     <strong>审查结果:</strong> {result['审查结果']}<br>
                     <strong>具体理由:</strong> {result['具体理由']}<br>
                     <strong>专业意见:</strong> {result['专业意见']}<br>
-                    <strong>条款修改建议:</strong><br>
-                    &nbsp;&nbsp;<strong>原文:</strong> {result['条款修改建议']['原文']}<br>
-                    &nbsp;&nbsp;<strong>修改建议:</strong> {result['条款修改建议']['修改建议']}<br>
+                    <strong>条款修改建议:</strong> {result['条款修改建议']}<br> 
                 </div>
                 """, unsafe_allow_html=True)
         
