@@ -1,0 +1,16 @@
+[theme]
+primaryColor = "#007AFF"  # Apple blue for primary elements
+backgroundColor =  "#FFFFFF"  # White background
+secondaryBackgroundColor = "#E5E5EA"  # Light gray for secondary elements
+textColor = "#000000"  # Black for text
+font = "sans-serif"  # Clean, modern font for both Chinese and English
+
+[server]
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+
+[global]
+developmentMode = false
