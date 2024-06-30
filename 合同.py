@@ -248,8 +248,6 @@ def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=
     )
     response_content = completion.choices[0].message.content
 
-    print(response_content)
-
     try:
         response_json = json.loads(response_content)
         result = {
@@ -310,9 +308,9 @@ with tab1:
             review_points_list = [list(review_point) for _, review_point in edited_df.iterrows()]
             for review_point in review_points_list:
                 with st.spinner(f"正在审查 {review_point[0]}..."):
-                    print(review_points_list)
-                    print("-----------------")
-                    print(review_point)
+                    #print(review_points_list)
+                    #print("-----------------")
+                    #print(review_point)
                     #print(len(review_points_list))
                     result = fake_api_call(review_point, pdf_text, test_mode=False, model=model)
                     st.session_state.review_results.append(result)
