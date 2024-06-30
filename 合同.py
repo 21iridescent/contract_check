@@ -176,7 +176,7 @@ tabs = st.tabs(["审查要点", "审查结果"])
 tab1, tab2 = tabs[0], tabs[1]
 
 def generate_prompt(review_point, contract_content):
-    review_point = review_point[0]
+    #review_point = review_point[0]
     xml_template = f"""
     <role>
 你是一名专业的中国合同律师，你的任务是审查一份保密协议，并根据中国法律和商业惯例提供专业意见。你的回答必须严格按照指定的 JSON 格式输出。
@@ -257,8 +257,6 @@ def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=
             },
         ],
     )
-    print(completion)
-    print(completion.choices[0].message.content)
     response_content = completion.choices[0].message.content
 
     print(response_content)
@@ -280,7 +278,7 @@ def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=
             if json_match:
                 response_json = json.loads(json_match.group())
                 result = {
-                    "审查要点": response_json.get("审查要点", review_point[0][0]),
+                    "审查要点": response_json.get("审查要点", review_point[0]),
                     "具体理由": response_json.get("具体理由", "无具体理由"),
                     "专业意见": response_json.get("专业意见", "无专业意见"),
                     "条款修改建议": response_json.get("条款修改建议", {"原文": "无原文", "修改建议": "无修改建议"}),
@@ -290,7 +288,7 @@ def fake_api_call(review_point, pdf_text, test_mode=False, model=model, api_key=
                 raise ValueError("No JSON-like content found")
         except (json.JSONDecodeError, ValueError):
             result = {
-                "审查要点": review_point["名称"],
+                "审查要点": review_point[0],
                 "具体理由": "无法解析的响应内容",
                 "专业意见": "改进建议",
                 "条款修改建议": {"原文": "无原文", "修改建议": "无修改建议"},
@@ -324,8 +322,10 @@ with tab1:
             for review_point in review_points_list:
                 with st.spinner(f"正在审查 {review_point[0]}..."):
                     print(review_points_list)
-                    print(len(review_points_list))
-                    result = fake_api_call(review_points_list, pdf_text, test_mode=False, model=model)
+                    print("-----------------")
+                    print(review_point)
+                    #print(len(review_points_list))
+                    result = fake_api_call(review_point, pdf_text, test_mode=False, model=model)
                     st.session_state.review_results.append(result)
                     st.success(f"{review_point[0]} 审查完成")
             st.session_state.current_tab = "审查结果"
